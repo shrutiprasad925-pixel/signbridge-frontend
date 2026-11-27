@@ -9,6 +9,7 @@ from pathlib import Path
 import pandas as pd
 import requests
 import streamlit as st
+from PIL import Image
 from gtts import gTTS
 
 # -------------------- Configuration --------------------
@@ -100,8 +101,17 @@ def spoken_letter(letter: str, language_code: str) -> str:
 
 
 def predict_image(image_file):
-    image_bytes = image_file.getvalue() if hasattr(image_file, "getvalue") else image_file
-    files = {"file": (getattr(image_file, "name", "sign.jpg"), image_bytes, "application/octet-stream")}
+    raw = image_file.getvalue() if hasattr(image_file, "getvalue") else image_file
+    try:
+        # Re-encode as a clean JPEG so the backend always receives a valid image
+        img = Image.open(io.BytesIO(raw)).convert("RGB")
+        img.thumbnail((1280, 1280))
+        buf = io.BytesIO()
+        img.save(buf, format="JPEG", quality=92)
+        image_bytes = buf.getvalue()
+    except Exception:
+        return None, "The captured file could not be read as an image. Please retake or upload a PNG or JPG.", 0.0
+    files = {"file": ("sign.jpg", image_bytes, "image/jpeg")}
     started = time.perf_counter()
     try:
         response = requests.post(PREDICT_URL, files=files, timeout=90)
